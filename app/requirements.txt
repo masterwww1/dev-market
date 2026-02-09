@@ -1,0 +1,19 @@
+# B2Bmarket backend - core
+fastapi==0.116.1
+uvicorn[standard]==0.22.0
+pydantic==2.10.6
+pydantic-settings==2.8.1
+python-multipart==0.0.18
+
+# Database
+SQLAlchemy==2.0.38
+psycopg2-binary==2.9.6
+alembic==1.11.1
+
+# TDD / testing
+pytest==8.2.0
+pytest-asyncio==0.24.0
+httpx==0.27.2
+
+# Dev
+python-dotenv==1.0.0
