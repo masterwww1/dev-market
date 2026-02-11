@@ -1,5 +1,7 @@
 """Pydantic schemas for Vendor API."""
 from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -9,6 +11,14 @@ class VendorCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., min_length=1, max_length=255, description="Vendor name")
+
+
+class VendorUpdate(BaseModel):
+    """Request body for updating a vendor (partial)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255, description="Vendor name")
 
 
 class VendorResponse(BaseModel):
