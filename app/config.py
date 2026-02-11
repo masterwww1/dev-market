@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     UVICORN_PORT: str = "8000"
     DEBUG: bool = False
+    JWT_SECRET: str = "your-secret-key-change-in-production-use-openssl-rand-hex-32"
 
     model_config = {"env_file": ".env", "extra": "allow"}
 

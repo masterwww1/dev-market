@@ -5,7 +5,7 @@ from config import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from be.routers import health, ping, vendors
+from be.routers import auth, health, ping, vendors
 
 settings = get_settings()
 log = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ app.add_middleware(
 
 app.include_router(ping.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 app.include_router(vendors.router, prefix="/api")
 
 
