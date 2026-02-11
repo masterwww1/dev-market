@@ -10,6 +10,10 @@ SQLAlchemy==2.0.38
 psycopg2-binary==2.9.6
 alembic==1.11.1
 
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
 # TDD / testing
 pytest==8.2.0
 pytest-asyncio==0.24.0
