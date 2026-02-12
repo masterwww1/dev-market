@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from be.database import Base
+import be.models  # noqa: F401 - register models with Base.metadata for autogenerate
 
 config = context.config
 
