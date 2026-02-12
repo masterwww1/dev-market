@@ -1,8 +1,11 @@
 """Authentication API for B2Bmarket."""
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from config import get_settings
 from be.database import get_db
 from be.models.user import User
 from be.schemas.auth import (
@@ -17,6 +20,8 @@ from be.utils.jwt import create_access_token, create_refresh_token, verify_token
 from be.utils.password import verify_password, generate_salt
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+log = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
@@ -25,64 +30,121 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
     Login with email and password.
     Returns JWT access token and refresh token.
     """
-    # Get user from database
-    user = (
-        db.query(User)
-        .filter(func.lower(User.email) == body.email.lower())
-        .first()
-    )
+    try:
+        log.info(f"🔐 Login attempt for email: {body.email}")
+        
+        # Get user from database
+        try:
+            user = (
+                db.query(User)
+                .filter(func.lower(User.email) == body.email.lower())
+                .first()
+            )
+            log.debug(f"User query completed. Found: {user is not None}")
+        except Exception as db_error:
+            log.error(
+                f"❌ Database query error during login: {type(db_error).__name__}: {str(db_error)}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(db_error)}" if settings.DEBUG else "Database connection error",
+            )
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
+        if not user:
+            log.warning(f"⚠️ Login failed: User not found for email: {body.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials",
+            )
+
+        # Check if user is active
+        if not user.active:
+            log.warning(f"⚠️ Login failed: Account disabled for email: {body.email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is disabled",
+            )
+
+        # Check user status
+        if user.status and user.status not in ("ACTIVE", "VERIFIED"):
+            log.warning(f"⚠️ Login failed: Account not verified for email: {body.email}, status: {user.status}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Account not verified",
+            )
+
+        # Verify password
+        try:
+            password_valid = verify_password(body.password, user.password_hash)
+            if not password_valid:
+                log.warning(f"⚠️ Login failed: Invalid password for email: {body.email}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid credentials",
+                )
+        except HTTPException:
+            raise
+        except Exception as pwd_error:
+            log.error(f"❌ Password verification error: {type(pwd_error).__name__}: {str(pwd_error)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Password verification error",
+            )
+
+        # Generate new salt and update user
+        try:
+            salt = generate_salt()
+            user.salt = salt
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        except Exception as db_update_error:
+            log.error(f"❌ Database update error: {type(db_update_error).__name__}: {str(db_update_error)}", exc_info=True)
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update user",
+            )
+
+        # Create tokens
+        try:
+            token_payload = {
+                "sub": user.email,
+                "user_id": user.id,
+                "source": "EMAIL",
+            }
+
+            access_token = create_access_token(token_payload, salt)
+            refresh_token = create_refresh_token(token_payload, salt)
+        except Exception as token_error:
+            log.error(f"❌ Token creation error: {type(token_error).__name__}: {str(token_error)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create tokens",
+            )
+
+        log.info(f"✅ Login successful for email: {body.email}, user_id: {user.id}")
+        return LoginResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="Bearer",
+            expires_in=900,  # 15 minutes in seconds
+            user={"id": user.id, "email": user.email},
         )
-
-    # Check if user is active
-    if not user.active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is disabled",
+    except HTTPException:
+        # Re-raise HTTP exceptions (they're already logged)
+        raise
+    except Exception as e:
+        # Catch any other unexpected errors
+        log.error(
+            f"❌ Unexpected error during login: {type(e).__name__}: {str(e)}",
+            exc_info=True
         )
-
-    # Check user status
-    if user.status and user.status not in ("ACTIVE", "VERIFIED"):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Account not verified",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login error: {str(e)}" if settings.DEBUG else "An error occurred during login",
         )
-
-    # Verify password
-    if not verify_password(body.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-        )
-
-    # Generate new salt and update user
-    salt = generate_salt()
-    user.salt = salt
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    # Create tokens
-    token_payload = {
-        "sub": user.email,
-        "user_id": user.id,
-        "source": "EMAIL",
-    }
-
-    access_token = create_access_token(token_payload, salt)
-    refresh_token = create_refresh_token(token_payload, salt)
-
-    return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="Bearer",
-        expires_in=900,  # 15 minutes in seconds
-        user={"id": user.id, "email": user.email},
-    )
 
 
 @router.post("/refresh", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK)
