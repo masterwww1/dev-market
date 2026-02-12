@@ -16,13 +16,19 @@ cp .env.sample .env
 
 ## Run
 
+**Important:** Use `python run.py` to automatically read the port from `.env` file.
+
 ```bash
 cd app
-uvicorn main:app --reload --port 8000
+python run.py
 ```
 
-- API: http://localhost:8000  
-- Docs: http://localhost:8000/docs  
+The `run.py` script reads `UVICORN_PORT` from `.env` file, so you can change the port in `.env` without modifying the startup command.
+
+**Note:** If you run `uvicorn main:app` directly, you must specify `--port` manually. Use `python run.py` instead to automatically use the port from `.env`.
+
+- API: http://localhost:{UVICORN_PORT} (default: 8210)
+- Docs: http://localhost:{UVICORN_PORT}/docs  
 
 ## Tests (TDD)
 

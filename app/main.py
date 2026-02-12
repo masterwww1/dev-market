@@ -1,18 +1,17 @@
 """B2Bmarket B2B marketplace portal - FastAPI backend."""
-import logging
-
 from config import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from be.routers import auth, health, ping, vendors
+from be.utils.logging_config import setup_logging
+from be.utils.middleware import LoggingMiddleware
+from be.utils.exception_handlers import setup_exception_handlers
 
 settings = get_settings()
-log = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s %(asctime)s %(name)s - %(message)s",
-)
+
+# Setup logging configuration
+setup_logging()
 
 app = FastAPI(
     title="B2Bmarket API",
@@ -20,6 +19,8 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Add middleware
+app.add_middleware(LoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL, "http://localhost:3000"],
@@ -28,10 +29,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register routers
 app.include_router(ping.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(vendors.router, prefix="/api")
+
+# Setup exception handlers
+setup_exception_handlers(app)
 
 
 @app.get("/")
