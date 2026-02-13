@@ -61,7 +61,13 @@ def create_vendor(body: VendorCreate, db: Session = Depends(get_db)) -> Vendor:
     """Create a new vendor."""
     try:
         log.info(f"➕ Creating vendor: name={body.name}")
-        vendor = Vendor(name=body.name)
+        vendor = Vendor(
+            name=body.name,
+            first_name=body.first_name,
+            last_name=body.last_name,
+            email=body.email,
+            phone_number=body.phone_number,
+        )
         db.add(vendor)
         db.commit()
         db.refresh(vendor)
@@ -86,6 +92,14 @@ def update_vendor(vendor_id: int, body: VendorUpdate, db: Session = Depends(get_
         
         if body.name is not None:
             vendor.name = body.name
+        if body.first_name is not None:
+            vendor.first_name = body.first_name
+        if body.last_name is not None:
+            vendor.last_name = body.last_name
+        if body.email is not None:
+            vendor.email = body.email
+        if body.phone_number is not None:
+            vendor.phone_number = body.phone_number
         
         db.commit()
         db.refresh(vendor)
