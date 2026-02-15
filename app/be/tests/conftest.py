@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from be.database import Base, get_db
-from be.routers import auth, health, ping, vendors
+from be.routers import auth, health, ping, vendors, products
 from config import get_settings
 
 # Use SQLite for tests so TDD works without Postgres
@@ -31,6 +31,7 @@ def create_test_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
     app.include_router(vendors.router, prefix="/api")
+    app.include_router(products.router, prefix="/api")
     return app
 
 
