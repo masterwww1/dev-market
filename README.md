@@ -16,13 +16,19 @@ cp .env.sample .env
 
 ## Run
 
+**Important:** Use `python run.py` to automatically read the port from `.env` file.
+
 ```bash
 cd app
-uvicorn main:app --reload --port 8000
+python run.py
 ```
 
-- API: http://localhost:8000  
-- Docs: http://localhost:8000/docs  
+The `run.py` script reads `UVICORN_PORT` from `.env` file, so you can change the port in `.env` without modifying the startup command.
+
+**Note:** If you run `uvicorn main:app` directly, you must specify `--port` manually. Use `python run.py` instead to automatically use the port from `.env`.
+
+- API: http://localhost:{UVICORN_PORT} (default: 8210)
+- Docs: http://localhost:{UVICORN_PORT}/docs  
 
 ## Tests (TDD)
 
@@ -46,6 +52,34 @@ alembic upgrade head
 alembic downgrade -1   # optional: rollback one revision
 ```
 
+## Authentication
+
+The backend includes FastAPI authentication endpoints as an alternative to the Lambda service:
+
+- `POST /api/auth/login` – Login with email/password, returns JWT tokens
+- `POST /api/auth/refresh` – Refresh access token using refresh token
+- `POST /api/auth/verify` – Verify token and get user information
+
+**Environment Variables:**
+- `JWT_SECRET` – Secret key for JWT signing (use `openssl rand -hex 32` to generate)
+
+**Create a test user:**
+```python
+from be.utils.password import hash_password
+from be.models.user import User
+from be.database import get_db_session
+
+with get_db_session() as db:
+    user = User(
+        email="admin@b2bmarket.com",
+        password_hash=hash_password("your-password"),
+        active=True,
+        status="ACTIVE"
+    )
+    db.add(user)
+    db.commit()
+```
+
 ## Project layout
 
 - `main.py` – FastAPI app, CORS, router registration
@@ -53,6 +87,7 @@ alembic downgrade -1   # optional: rollback one revision
 - `alembic.ini` – Alembic config; migrations in `migrations/`
 - `be/` – Application code
   - `database.py` – SQLAlchemy engine, session, `Base`, `get_db`
-  - `routers/` – API routes (ping, health, …)
+  - `routers/` – API routes (ping, health, auth, vendors, …)
   - `schemas/` – **Pydantic** request/response models
+  - `utils/` – Utilities (JWT, password hashing)
   - `tests/` – pytest tests and `conftest.py` fixtures
