@@ -3,7 +3,7 @@ from config import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from be.routers import auth, health, ping, vendors
+from be.routers import auth, health, ping, vendors, products
 from be.utils.logging_config import setup_logging
 from be.utils.middleware import LoggingMiddleware
 from be.utils.exception_handlers import setup_exception_handlers
@@ -34,6 +34,7 @@ app.include_router(ping.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(vendors.router, prefix="/api")
+app.include_router(products.router, prefix="/api")
 
 # Setup exception handlers
 setup_exception_handlers(app)
