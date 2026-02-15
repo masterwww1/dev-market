@@ -9,7 +9,7 @@ from be.database import Base
 
 
 class User(Base):
-    """User model for authentication."""
+    """User model for authentication. Vendor is matched by user email == vendor email."""
 
     __tablename__ = "users"
 
