@@ -8,6 +8,7 @@ from sqlalchemy import func
 from config import get_settings
 from be.database import get_db
 from be.models.user import User
+from be.models.vendor import Vendor
 from be.schemas.auth import (
     LoginRequest,
     LoginResponse,
@@ -114,7 +115,6 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
                 "user_id": user.id,
                 "source": "EMAIL",
             }
-
             access_token = create_access_token(token_payload, salt)
             refresh_token = create_refresh_token(token_payload, salt)
         except Exception as token_error:
@@ -125,12 +125,17 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
             )
 
         log.info(f"✅ Login successful for email: {body.email}, user_id: {user.id}")
+        user_data = {"id": user.id, "email": user.email}
+        # Match vendor by email (unique) so frontend knows if user is a vendor
+        vendor = db.query(Vendor).filter(func.lower(Vendor.email) == user.email.lower()).first()
+        if vendor is not None:
+            user_data["vendor_id"] = vendor.id
         return LoginResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="Bearer",
             expires_in=900,  # 15 minutes in seconds
-            user={"id": user.id, "email": user.email},
+            user=user_data,
         )
     except HTTPException:
         # Re-raise HTTP exceptions (they're already logged)
@@ -212,7 +217,6 @@ def refresh_token(body: RefreshTokenRequest, db: Session = Depends(get_db)) -> R
         "user_id": user.id,
         "source": decoded.get("source", "EMAIL"),
     }
-
     new_access_token = create_access_token(token_payload, user.salt or "")
 
     return RefreshTokenResponse(
@@ -287,9 +291,13 @@ def verify_token_endpoint(body: VerifyTokenRequest, db: Session = Depends(get_db
             payload={},
         )
 
+    user_data = {"id": user.id, "email": user.email}
+    vendor = db.query(Vendor).filter(func.lower(Vendor.email) == user.email.lower()).first()
+    if vendor is not None:
+        user_data["vendor_id"] = vendor.id
     return VerifyTokenResponse(
         valid=True,
-        user={"id": user.id, "email": user.email},
+        user=user_data,
         payload={
             "sub": decoded.get("sub"),
             "user_id": decoded.get("user_id"),

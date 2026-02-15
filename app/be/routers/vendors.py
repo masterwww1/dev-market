@@ -3,11 +3,14 @@ import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from be.database import get_db
+from be.models.user import User
 from be.models.vendor import Vendor
 from be.schemas.vendor import VendorCreate, VendorResponse, VendorUpdate
+from be.utils.password import generate_salt, hash_password
 
 router = APIRouter(prefix="/vendors", tags=["Vendors"])
 log = logging.getLogger(__name__)
@@ -56,9 +59,31 @@ def get_vendor(vendor_id: int, db: Session = Depends(get_db)) -> Vendor:
         )
 
 
+def _create_user_for_vendor(vendor: Vendor, db: Session) -> None:
+    """Create a login user for the vendor when vendor has email. Password = hashed(vendor.email)."""
+    if not vendor.email or not vendor.email.strip():
+        return
+    email = vendor.email.strip()
+    existing = db.query(User).filter(func.lower(User.email) == email.lower()).first()
+    if existing:
+        log.info(f"⏭️ User already exists for vendor email: {vendor.id}, skipping user creation")
+        return
+    password_hash = hash_password(email)
+    salt = generate_salt()
+    user = User(
+        email=email,
+        password_hash=password_hash,
+        salt=salt,
+        status="VERIFIED",
+        active=True,
+    )
+    db.add(user)
+    log.info(f"✅ Created user for vendor: vendor_id={vendor.id}, email={email}")
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=VendorResponse)
 def create_vendor(body: VendorCreate, db: Session = Depends(get_db)) -> Vendor:
-    """Create a new vendor."""
+    """Create a new vendor. If vendor has email, a login user is created (password = vendor email)."""
     try:
         log.info(f"➕ Creating vendor: name={body.name}")
         vendor = Vendor(
@@ -69,6 +94,8 @@ def create_vendor(body: VendorCreate, db: Session = Depends(get_db)) -> Vendor:
             phone_number=body.phone_number,
         )
         db.add(vendor)
+        db.flush()  # get vendor.id before commit
+        _create_user_for_vendor(vendor, db)
         db.commit()
         db.refresh(vendor)
         log.info(f"✅ Vendor created successfully: vendor_id={vendor.id}, name={vendor.name}")
